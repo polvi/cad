@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"io/ioutil"
 	"net"
+	"os"
 )
 
 var (
@@ -29,6 +31,11 @@ var (
 	getCA       = flag.Bool("get-ca", false, "Show the CA cert")
 	signKeyFile = flag.String("sign-key", "", "Key that needs to be signed")
 	hostname    = flag.String("hostname", "", "Hostname encoded in the cert, required for server certs")
+
+	keypairGen  = flag.String("keypair-gen", "", "Generate a keypair with the given hostname")
+	certFileOut = flag.String("cert-out", "", "Generated cert output location")
+	keyFileOut  = flag.String("key-out", "", "Generated key output location")
+	caFileOut   = flag.String("ca-out", "", "CA cert used for generated key")
 )
 
 func main() {
@@ -50,11 +57,11 @@ func main() {
 	defer conn.Close()
 	client := pb.NewCaClient(conn)
 	if *getCA {
-		caCert, err := client.GetCaCert(context.Background(), &pb.GetCaCertParams{})
+		ca, err := getCAHelper(client)
 		if err != nil {
 			grpclog.Fatalf("%v.GetCaCert(_) = _, %v: ", client, err)
 		}
-		fmt.Printf("%s", caCert.Cert)
+		fmt.Print(ca)
 	}
 	if *signKeyFile != "" {
 		keyFile, err := ioutil.ReadFile(*signKeyFile)
@@ -65,32 +72,20 @@ func main() {
 		if err != nil {
 			grpclog.Fatal(err)
 		}
-		csrPkixName := pkix.Name{
-			Country:            []string{"US"},
-			Organization:       []string{"cactl"},
-			OrganizationalUnit: nil,
-			Locality:           nil,
-			Province:           nil,
-			StreetAddress:      nil,
-			PostalCode:         nil,
-			SerialNumber:       "",
-			CommonName:         *hostname,
-		}
-
-		csrTemplate := &x509.CertificateRequest{
-			Subject:     csrPkixName,
-			IPAddresses: []net.IP{},
-			DNSNames:    []string{*hostname},
-		}
-		csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, key.Private)
+		out, err := signPriv(client, key.Private, *hostname)
+		fmt.Print(out)
+	}
+	if *keypairGen != "" {
+		priv, err := rsa.GenerateKey(rand.Reader, 4096)
 		if err != nil {
 			grpclog.Fatal(err)
 			return
 		}
+		privBytes := x509.MarshalPKCS1PrivateKey(priv)
 		pemBlock := &pem.Block{
-			Type:    "CERTIFICATE REQUEST",
+			Type:    "RSA PRIVATE KEY",
 			Headers: nil,
-			Bytes:   csrBytes,
+			Bytes:   privBytes,
 		}
 
 		buf := new(bytes.Buffer)
@@ -98,16 +93,98 @@ func main() {
 			grpclog.Fatal(err)
 			return
 		}
-		signParams := &pb.SignParams{
-			CSR: string(buf.Bytes()),
+		pemPrivKey := buf.Bytes()
+		if *keyFileOut != "" {
+			f, err := os.Create(*keyFileOut)
+			if err != nil {
+				grpclog.Fatal(err)
+				return
+			}
+			defer f.Close()
+			f.Write(pemPrivKey)
 		}
-		signed, err := client.Sign(context.Background(), signParams)
-		if err != nil {
-			grpclog.Fatalf("%v.GetCaCert(_) = _, %v: ", client, err)
+		if *certFileOut != "" {
+			pemCert, err := signPriv(client, priv, *keypairGen)
+			if err != nil {
+				grpclog.Fatal(err)
+				return
+			}
+			f, err := os.Create(*certFileOut)
+			if err != nil {
+				grpclog.Fatal(err)
+				return
+			}
+			defer f.Close()
+			f.Write([]byte(pemCert))
 		}
-		fmt.Print(signed.Cert)
+		if *caFileOut != "" {
+			pemCA, err := getCAHelper(client)
+			if err != nil {
+				grpclog.Fatal(err)
+				return
+			}
+			f, err := os.Create(*caFileOut)
+			if err != nil {
+				grpclog.Fatal(err)
+				return
+			}
+			defer f.Close()
+			f.Write([]byte(pemCA))
+		}
 	}
 }
+
+func getCAHelper(client pb.CaClient) (string, error) {
+	caCert, err := client.GetCaCert(context.Background(), &pb.GetCaCertParams{})
+	if err != nil {
+		return "", err
+	}
+	return caCert.Cert, nil
+}
+
+func signPriv(client pb.CaClient, priv crypto.PrivateKey, hostname string) (string, error) {
+	csrPkixName := pkix.Name{
+		Country:            []string{"US"},
+		Organization:       []string{"cactl"},
+		OrganizationalUnit: nil,
+		Locality:           nil,
+		Province:           nil,
+		StreetAddress:      nil,
+		PostalCode:         nil,
+		SerialNumber:       "",
+		CommonName:         hostname,
+	}
+
+	csrTemplate := &x509.CertificateRequest{
+		Subject:     csrPkixName,
+		IPAddresses: []net.IP{},
+		DNSNames:    []string{hostname},
+	}
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, priv)
+	if err != nil {
+		return "", err
+	}
+	pemBlock := &pem.Block{
+		Type:    "CERTIFICATE REQUEST",
+		Headers: nil,
+		Bytes:   csrBytes,
+	}
+
+	buf := new(bytes.Buffer)
+	if err := pem.Encode(buf, pemBlock); err != nil {
+		grpclog.Fatal(err)
+		return "", err
+	}
+	signParams := &pb.SignParams{
+		CSR: string(buf.Bytes()),
+	}
+	signed, err := client.Sign(context.Background(), signParams)
+	if err != nil {
+		grpclog.Fatalf("%v.GetCaCert(_) = _, %v: ", client, err)
+	}
+	return signed.Cert, nil
+}
+
 func NewClientMutualTLSFromFile(trustedServerCAFile, serverName, certFile, keyFile string) (credentials.TransportAuthenticator, error) {
 	b, err := ioutil.ReadFile(trustedServerCAFile)
 	if err != nil {
