@@ -32,7 +32,7 @@ var (
 	signKeyFile = flag.String("sign-key", "", "Key that needs to be signed")
 	hostname    = flag.String("hostname", "", "Hostname encoded in the cert, required for server certs")
 
-	keypairGen  = flag.String("keypair-gen", "", "Generate a keypair with the given hostname")
+	keyGen      = flag.Bool("keygen", false, "Generate a keypair with the given hostname")
 	certFileOut = flag.String("cert-out", "", "Generated cert output location")
 	keyFileOut  = flag.String("key-out", "", "Generated key output location")
 	caFileOut   = flag.String("ca-out", "", "CA cert used for generated key")
@@ -75,7 +75,7 @@ func main() {
 		out, err := signPriv(client, key.Private, *hostname)
 		fmt.Print(out)
 	}
-	if *keypairGen != "" {
+	if *keyGen {
 		priv, err := rsa.GenerateKey(rand.Reader, 4096)
 		if err != nil {
 			grpclog.Fatal(err)
@@ -104,7 +104,7 @@ func main() {
 			f.Write(pemPrivKey)
 		}
 		if *certFileOut != "" {
-			pemCert, err := signPriv(client, priv, *keypairGen)
+			pemCert, err := signPriv(client, priv, *hostname)
 			if err != nil {
 				grpclog.Fatal(err)
 				return
