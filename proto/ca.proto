@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package proto;
+
+// Interface exported by the server.
+service Ca {
+  rpc GetCaCert(GetCaCertParams) returns (CaCert) {}
+  rpc Sign(SignParams) returns (SignedCert) {}
+}
+
+message GetCaCertParams {}
+
+message SignParams {
+  string CSR = 1;
+  int64 duration = 2;
+}
+
+message SignedCert {
+  string Cert = 1;
+}
+
+message CaCert {
+  string cert = 1;
+}
