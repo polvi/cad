@@ -13,6 +13,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cloudflare/cfssl/initca"
 	pb "github.com/polvi/cad/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -36,16 +37,6 @@ var (
 )
 
 type caServer struct {
-}
-
-func (s *caServer) GetCaCert(ctx context.Context, in *pb.GetCaCertParams) (*pb.CaCert, error) {
-	caCertBytes, err := ioutil.ReadFile(*caCertFile)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.CaCert{
-		Cert: string(caCertBytes),
-	}, nil
 }
 
 func (s *caServer) Sign(ctx context.Context, in *pb.SignParams) (*pb.SignedCert, error) {
@@ -97,7 +88,7 @@ func (s *caServer) Sign(ctx context.Context, in *pb.SignParams) (*pb.SignedCert,
 	// TODO: 10 fixed years
 	hostTemplate.NotAfter = time.Now().AddDate(10, 0, 0).UTC()
 
-	//
+	// GenerateSubjectKeyId
 	var pubBytes []byte
 	pub := rawCsr.PublicKey
 	switch pub := pub.(type) {

@@ -36,6 +36,7 @@ var (
 	certFileOut = flag.String("cert-out", "", "Generated cert output location")
 	keyFileOut  = flag.String("key-out", "", "Generated key output location")
 	caFileOut   = flag.String("ca-out", "", "CA cert used for generated key")
+	keyGenBlock = flag.Bool("keygen-block", false, "Block after keygen")
 )
 
 func main() {
@@ -130,6 +131,10 @@ func main() {
 			}
 			defer f.Close()
 			f.Write([]byte(pemCA))
+		}
+		if *keyGenBlock {
+			// block forever
+			<-make(chan bool)
 		}
 	}
 }
