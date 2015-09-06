@@ -38,8 +38,8 @@ func (m *GetCaCertParams) String() string { return proto1.CompactTextString(m) }
 func (*GetCaCertParams) ProtoMessage()    {}
 
 type SignParams struct {
-	CSR      string `protobuf:"bytes,1,opt" json:"CSR,omitempty"`
-	Duration int64  `protobuf:"varint,2,opt,name=duration" json:"duration,omitempty"`
+	CSR      []byte `protobuf:"bytes,1,opt,proto3" json:"CSR,omitempty"`
+	Duration string `protobuf:"bytes,2,opt" json:"Duration,omitempty"`
 }
 
 func (m *SignParams) Reset()         { *m = SignParams{} }
@@ -47,7 +47,7 @@ func (m *SignParams) String() string { return proto1.CompactTextString(m) }
 func (*SignParams) ProtoMessage()    {}
 
 type SignedCert struct {
-	Cert string `protobuf:"bytes,1,opt" json:"Cert,omitempty"`
+	Cert []byte `protobuf:"bytes,1,opt,proto3" json:"Cert,omitempty"`
 }
 
 func (m *SignedCert) Reset()         { *m = SignedCert{} }
@@ -55,7 +55,7 @@ func (m *SignedCert) String() string { return proto1.CompactTextString(m) }
 func (*SignedCert) ProtoMessage()    {}
 
 type CaCert struct {
-	Cert string `protobuf:"bytes,1,opt,name=cert" json:"cert,omitempty"`
+	Cert []byte `protobuf:"bytes,1,opt,proto3" json:"Cert,omitempty"`
 }
 
 func (m *CaCert) Reset()         { *m = CaCert{} }
@@ -69,7 +69,8 @@ func init() {
 
 type CaClient interface {
 	GetCaCert(ctx context.Context, in *GetCaCertParams, opts ...grpc.CallOption) (*CaCert, error)
-	Sign(ctx context.Context, in *SignParams, opts ...grpc.CallOption) (*SignedCert, error)
+	SignCaCert(ctx context.Context, in *SignParams, opts ...grpc.CallOption) (*SignedCert, error)
+	SignCert(ctx context.Context, in *SignParams, opts ...grpc.CallOption) (*SignedCert, error)
 }
 
 type caClient struct {
@@ -89,9 +90,18 @@ func (c *caClient) GetCaCert(ctx context.Context, in *GetCaCertParams, opts ...g
 	return out, nil
 }
 
-func (c *caClient) Sign(ctx context.Context, in *SignParams, opts ...grpc.CallOption) (*SignedCert, error) {
+func (c *caClient) SignCaCert(ctx context.Context, in *SignParams, opts ...grpc.CallOption) (*SignedCert, error) {
 	out := new(SignedCert)
-	err := grpc.Invoke(ctx, "/proto.Ca/Sign", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/proto.Ca/SignCaCert", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *caClient) SignCert(ctx context.Context, in *SignParams, opts ...grpc.CallOption) (*SignedCert, error) {
+	out := new(SignedCert)
+	err := grpc.Invoke(ctx, "/proto.Ca/SignCert", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +112,8 @@ func (c *caClient) Sign(ctx context.Context, in *SignParams, opts ...grpc.CallOp
 
 type CaServer interface {
 	GetCaCert(context.Context, *GetCaCertParams) (*CaCert, error)
-	Sign(context.Context, *SignParams) (*SignedCert, error)
+	SignCaCert(context.Context, *SignParams) (*SignedCert, error)
+	SignCert(context.Context, *SignParams) (*SignedCert, error)
 }
 
 func RegisterCaServer(s *grpc.Server, srv CaServer) {
@@ -121,12 +132,24 @@ func _Ca_GetCaCert_Handler(srv interface{}, ctx context.Context, codec grpc.Code
 	return out, nil
 }
 
-func _Ca_Sign_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _Ca_SignCaCert_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
 	in := new(SignParams)
 	if err := codec.Unmarshal(buf, in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(CaServer).Sign(ctx, in)
+	out, err := srv.(CaServer).SignCaCert(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Ca_SignCert_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(SignParams)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(CaServer).SignCert(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -142,8 +165,12 @@ var _Ca_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Ca_GetCaCert_Handler,
 		},
 		{
-			MethodName: "Sign",
-			Handler:    _Ca_Sign_Handler,
+			MethodName: "SignCaCert",
+			Handler:    _Ca_SignCaCert_Handler,
+		},
+		{
+			MethodName: "SignCert",
+			Handler:    _Ca_SignCert_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{},
