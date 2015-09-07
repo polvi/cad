@@ -5,6 +5,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
 	pb "github.com/polvi/cad/proto"
 	"github.com/polvi/cad/server"
 	"google.golang.org/grpc"
@@ -66,7 +67,7 @@ func main() {
 		grpclog.Println("generated self-signed ca")
 	}
 	if *parentAddr != "" {
-		c, err = server.NewCaServerFromParent(*parentAddr)
+		c, err = server.NewCaServerFromParent(*parentAddr, jose.JWT{})
 		if err != nil {
 			grpclog.Fatalln("unable to create ca from parent:", err)
 		}

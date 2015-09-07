@@ -2,10 +2,13 @@ package client
 
 import (
 	"crypto/x509"
+	"github.com/coreos/go-oidc/jose"
 	pb "github.com/polvi/cad/proto"
+	grpcoidc "github.com/polvi/grpc-credentials/oidc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"time"
 )
 
 type CaClient struct {
@@ -30,7 +33,7 @@ func (c *CaClient) ParentCert() (*x509.Certificate, error) {
 	return c.parentCert, nil
 }
 
-func (c *CaClient) SignCa(csr *x509.CertificateRequest) (*x509.Certificate, error) {
+func (c *CaClient) SignCa(csr *x509.CertificateRequest, duration time.Duration) (*x509.Certificate, error) {
 	signResp, err := c.grpcClient.SignCaCert(context.Background(), &pb.SignParams{
 		CSR: csr.Raw,
 	})
@@ -39,9 +42,21 @@ func (c *CaClient) SignCa(csr *x509.CertificateRequest) (*x509.Certificate, erro
 	}
 	return x509.ParseCertificate(signResp.Cert)
 }
+func (c *CaClient) SignCert(csr *x509.CertificateRequest, duration time.Duration) (*x509.Certificate, error) {
+	signResp, err := c.grpcClient.SignCert(context.Background(), &pb.SignParams{
+		CSR:             csr.Raw,
+		DurationSeconds: int64(duration.Seconds()),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return x509.ParseCertificate(signResp.Cert)
+}
 
-func NewCaClient(addr string, tls bool, serverHostOverride string, trustedCaFile string) (*CaClient, error) {
+func NewCaClient(addr string, jwt jose.JWT, tls bool, serverHostOverride string, trustedCaFile string) (*CaClient, error) {
 	var opts []grpc.DialOption
+	creds := grpcoidc.NewOIDCAccess(&jwt)
+	opts = append(opts, grpc.WithPerRPCCredentials(creds))
 	if tls {
 		var sn string
 		if serverHostOverride != "" {

@@ -3,8 +3,9 @@ package server
 import (
 	"crypto"
 	"crypto/x509"
+	"github.com/coreos/go-oidc/jose"
 	"github.com/polvi/cad/client"
-	"github.com/polvi/x509ez"
+	"github.com/polvi/cad/x509ez"
 	"time"
 
 	pb "github.com/polvi/cad/proto"
@@ -35,16 +36,16 @@ func NewSelfSignedCaServer(expiry time.Duration, defaultExpiry time.Duration, ma
 	}, nil
 }
 
-func NewCaServerFromParent(parentAddr string) (*CaServer, error) {
-	c, err := client.NewCaClient(parentAddr, false, "", "")
+func NewCaServerFromParent(parentAddr string, jwt jose.JWT) (*CaServer, error) {
+	c, err := client.NewCaClient(parentAddr, jwt, false, "", "")
 	if err != nil {
 		return nil, err
 	}
-	csr, priv, err := x509ez.CreateMinCACertificateRequest()
+	csr, priv, err := x509ez.CreateMinCertificateRequest()
 	if err != nil {
 		return nil, err
 	}
-	signedCert, err := c.SignCa(csr)
+	signedCert, err := c.SignCa(csr, time.Duration(1*time.Hour))
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +67,7 @@ func (s *CaServer) GetCaCert(ctx context.Context, in *pb.GetCaCertParams) (*pb.C
 }
 
 func (s *CaServer) SignCaCert(ctx context.Context, in *pb.SignParams) (*pb.SignedCert, error) {
-	d, err := s.getDuration(in.Duration)
+	d, err := s.getDuration(in.DurationSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +91,7 @@ func (s *CaServer) SignCaCert(ctx context.Context, in *pb.SignParams) (*pb.Signe
 }
 
 func (s *CaServer) SignCert(ctx context.Context, in *pb.SignParams) (*pb.SignedCert, error) {
-	d, err := s.getDuration(in.Duration)
+	d, err := s.getDuration(in.DurationSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +113,8 @@ func (s *CaServer) SignCert(ctx context.Context, in *pb.SignParams) (*pb.SignedC
 	}, nil
 }
 
-func (s *CaServer) getDuration(dur string) (*time.Duration, error) {
-	d, err := time.ParseDuration(dur)
-	if err != nil {
-		return nil, err
-	}
+func (s *CaServer) getDuration(seconds int64) (*time.Duration, error) {
+	d := time.Duration(seconds) * time.Second
 	if d > s.maxExpiry {
 		d = s.maxExpiry
 	}

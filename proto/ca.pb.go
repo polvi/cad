@@ -38,8 +38,8 @@ func (m *GetCaCertParams) String() string { return proto1.CompactTextString(m) }
 func (*GetCaCertParams) ProtoMessage()    {}
 
 type SignParams struct {
-	CSR      []byte `protobuf:"bytes,1,opt,proto3" json:"CSR,omitempty"`
-	Duration string `protobuf:"bytes,2,opt" json:"Duration,omitempty"`
+	CSR             []byte `protobuf:"bytes,1,opt,proto3" json:"CSR,omitempty"`
+	DurationSeconds int64  `protobuf:"varint,2,opt" json:"DurationSeconds,omitempty"`
 }
 
 func (m *SignParams) Reset()         { *m = SignParams{} }
