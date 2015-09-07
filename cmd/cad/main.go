@@ -18,6 +18,7 @@ var (
 	parentAddr         = flag.String("parent-addr", "", "Generate a private key, then have it signed by this parent CA")
 	defaultDuration    = flag.String("default-duration", "1h", "If a duration is not requested, use this")
 	maxDuration        = flag.String("max-duration", "1h", "Max duration of a cert allowed by this server")
+	minDuration        = flag.String("min-duration", "1m", "Min duration of a cert allowed by this server")
 	selfSignedDuration = flag.String("self-signed-duration", "1h", "Duration the self signed certificate if valid")
 
 	tls        = flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
@@ -59,8 +60,12 @@ func main() {
 		if err != nil {
 			grpclog.Fatalln(err)
 		}
+		min, err := time.ParseDuration(*minDuration)
+		if err != nil {
+			grpclog.Fatalln(err)
+		}
 
-		c, err = server.NewSelfSignedCaServer(dur, def, max)
+		c, err = server.NewSelfSignedCaServer(dur, def, min, max)
 		if err != nil {
 			grpclog.Fatalf("unable to generate self signed ca: %s", err)
 		}

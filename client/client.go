@@ -35,7 +35,8 @@ func (c *CaClient) ParentCert() (*x509.Certificate, error) {
 
 func (c *CaClient) SignCa(csr *x509.CertificateRequest, duration time.Duration) (*x509.Certificate, error) {
 	signResp, err := c.grpcClient.SignCaCert(context.Background(), &pb.SignParams{
-		CSR: csr.Raw,
+		CSR:             csr.Raw,
+		DurationSeconds: int64(duration.Seconds()),
 	})
 	if err != nil {
 		return nil, err

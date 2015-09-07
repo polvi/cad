@@ -19,10 +19,11 @@ type CaServer struct {
 	parent        *x509.Certificate
 	client        *client.CaClient
 	maxExpiry     time.Duration
+	minExpiry     time.Duration
 	defaultExpiry time.Duration
 }
 
-func NewSelfSignedCaServer(expiry time.Duration, defaultExpiry time.Duration, maxExpiry time.Duration) (*CaServer, error) {
+func NewSelfSignedCaServer(expiry time.Duration, defaultExpiry time.Duration, minExpiry, maxExpiry time.Duration) (*CaServer, error) {
 	cert, priv, err := x509ez.CreateMinSelfSignedCACertificate(expiry)
 	if err != nil {
 		return nil, err
@@ -117,6 +118,9 @@ func (s *CaServer) getDuration(seconds int64) (*time.Duration, error) {
 	d := time.Duration(seconds) * time.Second
 	if d > s.maxExpiry {
 		d = s.maxExpiry
+	}
+	if d < s.minExpiry {
+		d = s.minExpiry
 	}
 	return &d, nil
 }
