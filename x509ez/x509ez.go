@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"github.com/coreos/go-oidc/oidc"
 	"math"
 	"math/big"
 	"time"
@@ -100,6 +102,21 @@ func CreateCertificate(expiry time.Duration, csr *x509.CertificateRequest, paren
 	tmpl, err := getMinimalTemplate(expiry)
 	if err != nil {
 		return nil, err
+	}
+	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, parent, csr.PublicKey, priv)
+	if err != nil {
+		return nil, err
+	}
+	return x509.ParseCertificate(derBytes)
+}
+
+func CreateCertificateFromIdentity(id *oidc.Identity, csr *x509.CertificateRequest, parent *x509.Certificate, priv crypto.PrivateKey) (*x509.Certificate, error) {
+	tmpl, err := getMinimalTemplate(id.ExpiresAt.Sub(time.Now()))
+	if err != nil {
+		return nil, err
+	}
+	tmpl.Subject = pkix.Name{
+		CommonName: id.ID,
 	}
 	derBytes, err := x509.CreateCertificate(rand.Reader, tmpl, parent, csr.PublicKey, priv)
 	if err != nil {

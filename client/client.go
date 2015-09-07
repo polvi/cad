@@ -54,9 +54,9 @@ func (c *CaClient) SignCert(csr *x509.CertificateRequest, duration time.Duration
 	return x509.ParseCertificate(signResp.Cert)
 }
 
-func NewCaClient(addr string, jwt jose.JWT, tls bool, serverHostOverride string, trustedCaFile string) (*CaClient, error) {
+func NewCaClient(addr string, idToken jose.JWT, tls bool, serverHostOverride string, trustedCaFile string) (*CaClient, error) {
 	var opts []grpc.DialOption
-	creds := grpcoidc.NewOIDCAccess(&jwt)
+	creds := grpcoidc.NewOIDCAccess(&idToken)
 	opts = append(opts, grpc.WithPerRPCCredentials(creds))
 	if tls {
 		var sn string

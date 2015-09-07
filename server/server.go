@@ -3,12 +3,13 @@ package server
 import (
 	"crypto"
 	"crypto/x509"
-	"github.com/coreos/go-oidc/jose"
 	"github.com/polvi/cad/client"
 	"github.com/polvi/cad/x509ez"
 	"time"
 
+	"github.com/coreos/go-oidc/oidc"
 	pb "github.com/polvi/cad/proto"
+	grpcoidc "github.com/polvi/grpc-credentials/oidc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/grpclog"
 )
@@ -18,12 +19,13 @@ type CaServer struct {
 	cert          *x509.Certificate
 	parent        *x509.Certificate
 	client        *client.CaClient
+	oidcClient    *oidc.Client
 	maxExpiry     time.Duration
 	minExpiry     time.Duration
 	defaultExpiry time.Duration
 }
 
-func NewSelfSignedCaServer(expiry time.Duration, defaultExpiry time.Duration, minExpiry, maxExpiry time.Duration) (*CaServer, error) {
+func NewSelfSignedCaServer(oidcClient *oidc.Client, expiry time.Duration, defaultExpiry time.Duration, minExpiry, maxExpiry time.Duration) (*CaServer, error) {
 	cert, priv, err := x509ez.CreateMinSelfSignedCACertificate(expiry)
 	if err != nil {
 		return nil, err
@@ -34,11 +36,16 @@ func NewSelfSignedCaServer(expiry time.Duration, defaultExpiry time.Duration, mi
 		parent:        cert,
 		defaultExpiry: defaultExpiry,
 		maxExpiry:     maxExpiry,
+		oidcClient:    oidcClient,
 	}, nil
 }
 
-func NewCaServerFromParent(parentAddr string, jwt jose.JWT) (*CaServer, error) {
-	c, err := client.NewCaClient(parentAddr, jwt, false, "", "")
+func NewCaServerFromParent(parentAddr string, refreshToken string, oidcClient *oidc.Client) (*CaServer, error) {
+	idToken, err := oidcClient.RefreshToken(refreshToken)
+	if err != nil {
+		return nil, err
+	}
+	c, err := client.NewCaClient(parentAddr, idToken, false, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +99,8 @@ func (s *CaServer) SignCaCert(ctx context.Context, in *pb.SignParams) (*pb.Signe
 }
 
 func (s *CaServer) SignCert(ctx context.Context, in *pb.SignParams) (*pb.SignedCert, error) {
-	d, err := s.getDuration(in.DurationSeconds)
+
+	id, err := grpcoidc.VerifiedIdentityFromContext(s.oidcClient, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -100,15 +108,15 @@ func (s *CaServer) SignCert(ctx context.Context, in *pb.SignParams) (*pb.SignedC
 	if err != nil {
 		return nil, err
 	}
-	cert, err := x509ez.CreateCertificate(*d,
+	cert, err := x509ez.CreateCertificateFromIdentity(id,
 		csr,
 		s.parent,
 		s.priv)
 	if err != nil {
 		return nil, err
 	}
-	grpclog.Printf("SignCert serial=%d parent=%d expiration=%s\n",
-		cert.SerialNumber, s.parent.SerialNumber, cert.NotAfter)
+	grpclog.Printf("SignCert cert.SerialNumber=%d parent.SerialNumber=%d cert.NotAfter=%q id.ID=%q id.Name=%q id.Email=%q id.ExpiresAt=%q\n",
+		cert.SerialNumber, s.parent.SerialNumber, cert.NotAfter, id.ID, id.Name, id.Email, id.ExpiresAt)
 	return &pb.SignedCert{
 		Cert: cert.Raw,
 	}, nil
