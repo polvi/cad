@@ -20,10 +20,10 @@ import (
 )
 
 var (
-	exitOnRefresh    = flag.Bool("exit-on-refresh", true, "Instead of rewriting the cert files, exit. Useful for crashing a pod that needs new credentials")
-	refreshTokenFile = flag.String("refresh-token-file", "", "Location of file containing refresh token")
-	certOutFile      = flag.String("cert-out-file", "cert.pem", "Write signed cert here")
-	keyOutFile       = flag.String("key-out-file", "key.pem", "Write private key here")
+	exitOnRefresh      = flag.Bool("exit-on-refresh", true, "Instead of rewriting the cert files, exit. Useful for crashing a pod that needs new credentials")
+	idRefreshTokenFile = flag.String("identity-refresh-token-file", "", "Location of file containing refresh token")
+	certOutFile        = flag.String("cert-out-file", "cert.pem", "Write signed cert here")
+	keyOutFile         = flag.String("key-out-file", "key.pem", "Write private key here")
 
 	clientID     = flag.String("client-id", "XXX", "client id")
 	clientSecret = flag.String("client-secret", "secrete", "secret")
@@ -62,7 +62,7 @@ func getJWT(c *oidc.Client, listenAddr string) (*oauth2.Client, chan *oauth2.Tok
 func main() {
 	flag.Parse()
 
-	if *refreshTokenFile == "" {
+	if *idRefreshTokenFile == "" {
 		fmt.Println("Must set -refresh-token-file")
 		return
 	}
@@ -72,10 +72,10 @@ func main() {
 		return
 	}
 	var tok *oauth2.TokenResponse
-	f, err := os.Open(*refreshTokenFile)
+	f, err := os.Open(*idRefreshTokenFile)
 	defer f.Close()
 	if err != nil {
-		fmt.Println("error reading refresh token, fetching a new one and writing to", *refreshTokenFile)
+		fmt.Println("error reading refresh token, fetching a new one and writing to", *idRefreshTokenFile)
 		oac, jwtChan, err := getJWT(oidcClient, "localhost:5555")
 		if err != nil {
 			fmt.Println(err)
@@ -87,7 +87,7 @@ func main() {
 		}
 		fmt.Println(oac.AuthCodeURL("", "", ""))
 		tok = <-jwtChan
-		f, err := os.Create(*refreshTokenFile)
+		f, err := os.Create(*idRefreshTokenFile)
 		defer f.Close()
 		if err != nil {
 			fmt.Println(err)

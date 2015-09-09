@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"net"
+	"os"
 	"time"
 
 	pb "github.com/polvi/cad/proto"
@@ -16,6 +18,7 @@ import (
 var (
 	selfSigned         = flag.Bool("self-signed", false, "Have this CA generate a key and a self signed cert in memory")
 	parentAddr         = flag.String("parent-addr", "", "Generate a private key, then have it signed by this parent CA")
+	idRefreshTokenFile = flag.String("identity-refresh-token-file", "", "Location of file containing refresh token for this instances identity. Used when requesting CA cert from parent CA server, not needed for self-signed. ")
 	defaultDuration    = flag.String("default-duration", "1h", "If a duration is not requested, use this")
 	maxDuration        = flag.String("max-duration", "1h", "Max duration of a cert allowed by this server")
 	minDuration        = flag.String("min-duration", "1m", "Min duration of a cert allowed by this server")
@@ -80,7 +83,15 @@ func main() {
 		grpclog.Println("generated self-signed ca")
 	}
 	if *parentAddr != "" {
-		c, err = server.NewCaServerFromParent(*parentAddr, "", oidcClient)
+		f, err := os.Open(*idRefreshTokenFile)
+		if err != nil {
+			grpclog.Fatalln("unable to open refresh token:", err)
+		}
+		refToken, err := ioutil.ReadAll(f)
+		if err != nil {
+			grpclog.Fatalln("unable to read refresh token:", err)
+		}
+		c, err = server.NewCaServerFromParent(*parentAddr, string(refToken), oidcClient)
 		if err != nil {
 			grpclog.Fatalln("unable to create ca from parent:", err)
 		}
