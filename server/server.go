@@ -62,10 +62,11 @@ func NewCaServerFromParent(parentAddr string, refreshToken string, oidcClient *o
 		return nil, err
 	}
 	return &CaServer{
-		cert:   signedCert,
-		priv:   priv,
-		client: c,
-		parent: parentCert,
+		cert:       signedCert,
+		priv:       priv,
+		client:     c,
+		parent:     parentCert,
+		oidcClient: oidcClient,
 	}, nil
 }
 

@@ -24,6 +24,7 @@ var (
 	idRefreshTokenFile = flag.String("identity-refresh-token-file", "", "Location of file containing refresh token")
 	certOutFile        = flag.String("cert-out-file", "cert.pem", "Write signed cert here")
 	keyOutFile         = flag.String("key-out-file", "key.pem", "Write private key here")
+	cadAddr            = flag.String("cad-addr", "localhost:10002", "Use this CAd server")
 
 	clientID     = flag.String("client-id", "XXX", "client id")
 	clientSecret = flag.String("client-secret", "secrete", "secret")
@@ -105,7 +106,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	c, err := client.NewCaClient("127.0.0.1:10001", jwt, false, "", "")
+	c, err := client.NewCaClient(*cadAddr, jwt, false, "", "")
 	if err != nil {
 		fmt.Println(err)
 		return
