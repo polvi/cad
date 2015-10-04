@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"github.com/coreos/go-oidc/oidc"
+	"io"
 	"math"
 	"math/big"
 	"os"
@@ -44,7 +45,7 @@ func getMinimalTemplate(expiry time.Duration) (*x509.Certificate, error) {
 	return tmpl, nil
 }
 
-func CreateMinSelfSignedCACertificate(expiry time.Duration) (*x509.Certificate, crypto.PrivateKey, error) {
+func CreateMinSelfSignedCACertificate(expiry time.Duration) (*x509.Certificate, *rsa.PrivateKey, error) {
 
 	tmpl, err := getMinimalCATemplate(expiry)
 	if err != nil {
@@ -127,13 +128,8 @@ func CreateCertificateFromIdentity(id *oidc.Identity, csr *x509.CertificateReque
 	return x509.ParseCertificate(derBytes)
 }
 
-func WriteCertToFile(cert *x509.Certificate, file string) error {
-	certFile, err := os.Create(file)
-	defer certFile.Close()
-	if err != nil {
-		return err
-	}
-	if err := pem.Encode(certFile, &pem.Block{
+func CertToPem(cert *x509.Certificate, out io.Writer) error {
+	if err := pem.Encode(out, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: cert.Raw,
 	}); err != nil {
@@ -141,17 +137,37 @@ func WriteCertToFile(cert *x509.Certificate, file string) error {
 	}
 	return nil
 }
+
+func WriteCertToFile(cert *x509.Certificate, file string) error {
+	certFile, err := os.Create(file)
+	defer certFile.Close()
+	if err != nil {
+		return err
+	}
+	if err := CertToPem(cert, certFile); err != nil {
+		return err
+	}
+	return nil
+}
+
+func KeyToPem(priv *rsa.PrivateKey, out io.Writer) error {
+	derPriv := x509.MarshalPKCS1PrivateKey(priv)
+	if err := pem.Encode(out, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: derPriv,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func WriteKeyToFile(priv *rsa.PrivateKey, file string) error {
 	privFile, err := os.Create(file)
 	defer privFile.Close()
 	if err != nil {
 		return err
 	}
-	derPriv := x509.MarshalPKCS1PrivateKey(priv)
-	if err := pem.Encode(privFile, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: derPriv,
-	}); err != nil {
+	if err := KeyToPem(priv, privFile); err != nil {
 		return err
 	}
 	return nil
