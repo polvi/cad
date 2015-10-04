@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"github.com/polvi/cad/client"
 	"github.com/polvi/cad/x509ez"
+	"os"
 	"time"
 
 	pb "github.com/polvi/cad/proto"
@@ -60,7 +61,34 @@ func NewCaServerFromParent(parentAddr string, refreshToken string) (*CaServer, e
 		parent: parentCert,
 	}, nil
 }
+func NewCaServerFromLocalFiles(caCertFile string, caKeyFile string, defaultExpiry time.Duration, minExpiry, maxExpiry time.Duration) (*CaServer, error) {
+	certFile, err := os.Open(caCertFile)
+	defer certFile.Close()
+	if err != nil {
+		return nil, err
+	}
+	keyFile, err := os.Open(caKeyFile)
+	defer keyFile.Close()
+	if err != nil {
+		return nil, err
+	}
+	certs, err := x509ez.PemToCerts(certFile)
+	if err != nil {
+		return nil, err
+	}
+	priv, err := x509ez.PemToKey(keyFile)
+	if err != nil {
+		return nil, err
+	}
+	return &CaServer{
+		cert:          certs[0],
+		priv:          priv,
+		parent:        certs[0],
+		defaultExpiry: defaultExpiry,
+		maxExpiry:     maxExpiry,
+	}, nil
 
+}
 func (s *CaServer) GetCaCert(ctx context.Context, in *pb.GetCaCertParams) (*pb.CaCert, error) {
 	grpclog.Printf("GetCaCert serial=%d\n", s.parent.SerialNumber)
 	return &pb.CaCert{s.parent.Raw}, nil

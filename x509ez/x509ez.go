@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"github.com/coreos/go-oidc/oidc"
 	"io"
+	"io/ioutil"
 	"math"
 	"math/big"
 	"os"
@@ -149,6 +150,18 @@ func WriteCertToFile(cert *x509.Certificate, file string) error {
 	}
 	return nil
 }
+func PemToCerts(in io.Reader) ([]*x509.Certificate, error) {
+	d, err := ioutil.ReadAll(in)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(d)
+	certs, err := x509.ParseCertificates(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return certs, nil
+}
 
 func KeyToPem(priv *rsa.PrivateKey, out io.Writer) error {
 	derPriv := x509.MarshalPKCS1PrivateKey(priv)
@@ -159,6 +172,19 @@ func KeyToPem(priv *rsa.PrivateKey, out io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+func PemToKey(in io.Reader) (*rsa.PrivateKey, error) {
+	d, err := ioutil.ReadAll(in)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(d)
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 func WriteKeyToFile(priv *rsa.PrivateKey, file string) error {

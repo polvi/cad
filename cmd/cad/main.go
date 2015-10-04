@@ -17,6 +17,8 @@ import (
 var (
 	selfSigned         = flag.Bool("self-signed", false, "Have this CA generate a key and a self signed cert in memory")
 	parentAddr         = flag.String("parent-addr", "", "Generate a private key, then have it signed by this parent CA")
+	caCertFile         = flag.String("ca-cert", "", "Use this local cert CA cert")
+	caKeyFile          = flag.String("ca-key", "", "Use this local key for the CA key")
 	idRefreshTokenFile = flag.String("identity-refresh-token-file", "", "Location of file containing refresh token for this instances identity. Used when requesting CA cert from parent CA server, not needed for self-signed. ")
 	defaultDuration    = flag.String("default-duration", "1h", "If a duration is not requested, use this")
 	maxDuration        = flag.String("max-duration", "1h", "Max duration of a cert allowed by this server")
@@ -46,27 +48,27 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(opts...)
 	c := &server.CaServer{}
-	if !*selfSigned && *parentAddr == "" {
-		grpclog.Fatalln("Must specify -self-signed or -parent-addr")
+	if !*selfSigned && *parentAddr == "" && (*caCertFile == "" || *caKeyFile == "") {
+		grpclog.Fatalln("Must specify -self-signed or -parent-addr or -ca-key/cert")
 	}
+	def, err := time.ParseDuration(*defaultDuration)
+	if err != nil {
+		grpclog.Fatalln(err)
+	}
+	max, err := time.ParseDuration(*maxDuration)
+	if err != nil {
+		grpclog.Fatalln(err)
+	}
+	min, err := time.ParseDuration(*minDuration)
+	if err != nil {
+		grpclog.Fatalln(err)
+	}
+
 	if *selfSigned {
 		dur, err := time.ParseDuration(*selfSignedDuration)
 		if err != nil {
 			grpclog.Fatalln(err)
 		}
-		def, err := time.ParseDuration(*defaultDuration)
-		if err != nil {
-			grpclog.Fatalln(err)
-		}
-		max, err := time.ParseDuration(*maxDuration)
-		if err != nil {
-			grpclog.Fatalln(err)
-		}
-		min, err := time.ParseDuration(*minDuration)
-		if err != nil {
-			grpclog.Fatalln(err)
-		}
-
 		c, err = server.NewSelfSignedCaServer(dur, def, min, max)
 		if err != nil {
 			grpclog.Fatalf("unable to generate self signed ca: %s", err)
@@ -88,6 +90,14 @@ func main() {
 		}
 		grpclog.Println("setup ca from parent", *parentAddr)
 	}
+	if *caCertFile != "" && *caKeyFile != "" {
+		c, err = server.NewCaServerFromLocalFiles(*caCertFile, *caKeyFile, def, max, min)
+		if err != nil {
+			grpclog.Fatalln("unable to create ca from local files:", err)
+		}
+		grpclog.Println("setup ca from localfiles", *caCertFile, *caKeyFile)
+	}
+
 	pb.RegisterCaServer(grpcServer, c)
 	grpclog.Println("serving at", *serverAddr)
 	grpcServer.Serve(lis)
