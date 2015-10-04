@@ -6,9 +6,11 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"github.com/coreos/go-oidc/oidc"
 	"math"
 	"math/big"
+	"os"
 	"time"
 )
 
@@ -65,7 +67,7 @@ func CreateMinSelfSignedCACertificate(expiry time.Duration) (*x509.Certificate, 
 	return cert, priv, nil
 }
 
-func CreateMinCertificateRequest() (*x509.CertificateRequest, crypto.PrivateKey, error) {
+func CreateMinCertificateRequest() (*x509.CertificateRequest, *rsa.PrivateKey, error) {
 
 	tmpl := &x509.CertificateRequest{}
 
@@ -123,4 +125,34 @@ func CreateCertificateFromIdentity(id *oidc.Identity, csr *x509.CertificateReque
 		return nil, err
 	}
 	return x509.ParseCertificate(derBytes)
+}
+
+func WriteCertToFile(cert *x509.Certificate, file string) error {
+	certFile, err := os.Create(file)
+	defer certFile.Close()
+	if err != nil {
+		return err
+	}
+	if err := pem.Encode(certFile, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+func WriteKeyToFile(priv *rsa.PrivateKey, file string) error {
+	privFile, err := os.Create(file)
+	defer privFile.Close()
+	if err != nil {
+		return err
+	}
+	derPriv := x509.MarshalPKCS1PrivateKey(priv)
+	if err := pem.Encode(privFile, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: derPriv,
+	}); err != nil {
+		return err
+	}
+	return nil
 }

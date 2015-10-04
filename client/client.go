@@ -2,9 +2,7 @@ package client
 
 import (
 	"crypto/x509"
-	"github.com/coreos/go-oidc/jose"
 	pb "github.com/polvi/cad/proto"
-	grpcoidc "github.com/polvi/grpc-credentials/oidc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -54,10 +52,8 @@ func (c *CaClient) SignCert(csr *x509.CertificateRequest, duration time.Duration
 	return x509.ParseCertificate(signResp.Cert)
 }
 
-func NewCaClient(addr string, idToken jose.JWT, tls bool, serverHostOverride string, trustedCaFile string) (*CaClient, error) {
+func NewCaClient(addr string, tls bool, serverHostOverride string, trustedCaFile string) (*CaClient, error) {
 	var opts []grpc.DialOption
-	creds := grpcoidc.NewOIDCAccess(&idToken)
-	opts = append(opts, grpc.WithPerRPCCredentials(creds))
 	if tls {
 		var sn string
 		if serverHostOverride != "" {

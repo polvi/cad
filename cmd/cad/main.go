@@ -9,7 +9,6 @@ import (
 
 	pb "github.com/polvi/cad/proto"
 	"github.com/polvi/cad/server"
-	"github.com/polvi/procio/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
@@ -24,15 +23,11 @@ var (
 	minDuration        = flag.String("min-duration", "1m", "Min duration of a cert allowed by this server")
 	selfSignedDuration = flag.String("self-signed-duration", "1h", "Duration the self signed certificate if valid")
 
-	clientID     = flag.String("client-id", "XXX", "client id")
-	clientSecret = flag.String("client-secret", "secrete", "secret")
-	discovery    = flag.String("discovery", "http://127.0.0.1:5556", "discovery url")
-	redirectURL  = flag.String("redirect-url", "http://127.0.0.1:5555/callback", "Redirect URL for third leg of OIDC")
-	tls          = flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
-	parentTls    = flag.Bool("parent-tls", false, "Connection uses TLS if true, else plain TCP")
-	certFile     = flag.String("cert", "my.crt", "This servers TLS cert")
-	keyFile      = flag.String("key", "my.key", "This servers TLS key")
-	serverAddr   = flag.String("server-addr", "127.0.0.1:10001", "The server address in the format of host:port")
+	tls        = flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
+	parentTls  = flag.Bool("parent-tls", false, "Connection uses TLS if true, else plain TCP")
+	certFile   = flag.String("cert", "my.crt", "This servers TLS cert")
+	keyFile    = flag.String("key", "my.key", "This servers TLS key")
+	serverAddr = flag.String("server-addr", "127.0.0.1:10001", "The server address in the format of host:port")
 )
 
 func main() {
@@ -54,10 +49,6 @@ func main() {
 	if !*selfSigned && *parentAddr == "" {
 		grpclog.Fatalln("Must specify -self-signed or -parent-addr")
 	}
-	oidcClient, err := util.GetOIDCClient(*clientID, *clientSecret, *discovery, *redirectURL)
-	if err != nil {
-		grpclog.Fatalf("unable to get oidc client: %s", err)
-	}
 	if *selfSigned {
 		dur, err := time.ParseDuration(*selfSignedDuration)
 		if err != nil {
@@ -76,7 +67,7 @@ func main() {
 			grpclog.Fatalln(err)
 		}
 
-		c, err = server.NewSelfSignedCaServer(oidcClient, dur, def, min, max)
+		c, err = server.NewSelfSignedCaServer(dur, def, min, max)
 		if err != nil {
 			grpclog.Fatalf("unable to generate self signed ca: %s", err)
 		}
@@ -91,7 +82,7 @@ func main() {
 		if err != nil {
 			grpclog.Fatalln("unable to read refresh token:", err)
 		}
-		c, err = server.NewCaServerFromParent(*parentAddr, string(refToken), oidcClient)
+		c, err = server.NewCaServerFromParent(*parentAddr, string(refToken))
 		if err != nil {
 			grpclog.Fatalln("unable to create ca from parent:", err)
 		}
